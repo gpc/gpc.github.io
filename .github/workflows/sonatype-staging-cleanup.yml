@@ -30,7 +30,10 @@ permissions:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
-    container: groovy:4.0-jdk21
+    container:
+      image: groovy:4.0-jdk21
+      # the image runs as uid 1000, which cannot write to the runner's mounted _temp dir
+      options: --user root
     steps:
       - name: "📥 Checkout the repository"
         uses: actions/checkout@v4
