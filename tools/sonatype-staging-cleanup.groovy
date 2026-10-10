@@ -3,9 +3,13 @@
  * Lists and drops stale staging repositories on the Sonatype OSSRH staging API.
  * See https://github.com/gpc/.github/issues/1
  *
- * Credentials are read from ~/.groovy/sonatype-secrets.yml:
+ * Credentials are read from SONATYPE_USERNAME / SONATYPE_PASSWORD, falling back to
+ * ~/.groovy/sonatype-secrets.yml:
  *   username: <portal token username>
  *   password: <portal token password>
+ *
+ * The proxy only returns repositories opened with the same token, so use the one
+ * CI publishes with (see .github/workflows/sonatype-staging-cleanup.yml).
  */
 import groovy.cli.commons.CliBuilder
 import groovy.json.JsonSlurper
@@ -50,15 +54,19 @@ def fail = { String msg ->
     System.exit(1)
 }
 String secretsHelp = """\
-Create ${SECRETS} with your central.sonatype.com user token:
+Set SONATYPE_USERNAME and SONATYPE_PASSWORD, or create ${SECRETS}
+with your central.sonatype.com user token:
 
   username: <token username>
   password: <token password>
 """
-if (!SECRETS.file) fail("Secrets file not found.\n$secretsHelp")
-def secrets = new YamlSlurper().parse(SECRETS)
-if (!(secrets instanceof Map) || !secrets.username || !secrets.password) {
-    fail("Secrets file must contain 'username' and 'password'.\n$secretsHelp")
+def secrets = [username: System.getenv('SONATYPE_USERNAME'), password: System.getenv('SONATYPE_PASSWORD')]
+if (!secrets.username || !secrets.password) {
+    if (!SECRETS.file) fail("No credentials found.\n$secretsHelp")
+    secrets = new YamlSlurper().parse(SECRETS)
+    if (!(secrets instanceof Map) || !secrets.username || !secrets.password) {
+        fail("Secrets file must contain 'username' and 'password'.\n$secretsHelp")
+    }
 }
 String token = "${secrets.username}:${secrets.password}".bytes.encodeBase64().toString()
 
