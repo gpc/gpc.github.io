@@ -1,0 +1,55 @@
+# Lists or drops staging repositories on the Sonatype OSSRH staging API proxy,
+# using the same token the release workflows publish with.
+# Dropping a deployment in the central.sonatype.com UI does not remove it from the
+# proxy, which makes findSonatypeStagingRepository fail with "Too many repositories found".
+# See https://github.com/gpc/.github/issues/1
+name: Sonatype staging cleanup
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'list or drop'
+        type: choice
+        options: [ list, drop ]
+        default: list
+      state:
+        description: 'Repository state'
+        type: choice
+        options: [ closed, open, released, all ]
+        default: closed
+      filter:
+        description: 'Regex on the description, e.g. grails-datastore-rest-client-legacy:8.0.1 (required for drop)'
+        type: string
+        required: false
+      dry_run:
+        description: 'Only print what would be dropped'
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    container: groovy:4.0-jdk21
+    steps:
+      - name: "📥 Checkout the repository"
+        uses: actions/checkout@v4
+      - name: "🧹 Run sonatype-staging-cleanup"
+        env:
+          SONATYPE_USERNAME: ${{ secrets.NEXUS_PUBLISH_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.NEXUS_PUBLISH_PASSWORD }}
+          COMMAND: ${{ inputs.command }}
+          STATE: ${{ inputs.state }}
+          FILTER: ${{ inputs.filter }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$COMMAND" = drop ] && [ -z "$FILTER" ]; then
+            echo "::error::A filter is required for drop, so a single run cannot drop every repository"
+            exit 1
+          fi
+          set -- "$COMMAND" --state "$STATE"
+          [ -n "$FILTER" ] && set -- "$@" --filter "$FILTER"
+          if [ "$COMMAND" = drop ]; then
+            if [ "$DRY_RUN" = true ]; then set -- "$@" --dry-run; else set -- "$@" --yes; fi
+          fi
+          groovy tools/sonatype-staging-cleanup.groovy "$@"
