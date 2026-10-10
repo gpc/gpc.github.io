@@ -18,7 +18,11 @@ on:
         options: [ closed, open, released, all ]
         default: closed
       filter:
-        description: 'Regex on the description, e.g. grails-datastore-rest-client-legacy:8.0.1 (required for drop)'
+        description: 'Regex on the description, e.g. grails-datastore-rest-client-legacy:8.0.1 (drop needs this or key)'
+        type: string
+        required: false
+      key:
+        description: 'Comma-separated repository keys, or unique parts such as the UUID from a Gradle error'
         type: string
         required: false
       dry_run:
@@ -44,14 +48,16 @@ jobs:
           COMMAND: ${{ inputs.command }}
           STATE: ${{ inputs.state }}
           FILTER: ${{ inputs.filter }}
+          KEY: ${{ inputs.key }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ "$COMMAND" = drop ] && [ -z "$FILTER" ]; then
-            echo "::error::A filter is required for drop, so a single run cannot drop every repository"
+          if [ "$COMMAND" = drop ] && [ -z "$FILTER" ] && [ -z "$KEY" ]; then
+            echo "::error::A filter or key is required for drop, so a single run cannot drop every repository"
             exit 1
           fi
           set -- "$COMMAND" --state "$STATE"
           [ -n "$FILTER" ] && set -- "$@" --filter "$FILTER"
+          [ -n "$KEY" ] && set -- "$@" --key "$KEY"
           if [ "$COMMAND" = drop ]; then
             if [ "$DRY_RUN" = true ]; then set -- "$@" --dry-run; else set -- "$@" --yes; fi
           fi

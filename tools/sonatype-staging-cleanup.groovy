@@ -30,6 +30,7 @@ cli.with {
     s(longOpt: 'state', args: 1, argName: 'state', 'Repository state: open, closed, released or all (default: closed)')
     i(longOpt: 'ip', args: 1, argName: 'ip', 'Repositories created from: any, client (this machine) or a specific IP (default: any)')
     f(longOpt: 'filter', args: 1, argName: 'regex', 'Only include repositories whose description matches this regex (find)')
+    k(longOpt: 'key', args: 1, argName: 'keys', 'Only include repositories whose key contains one of these comma-separated values, e.g. the UUID from a Gradle error')
     y(longOpt: 'yes', 'Do not ask for confirmation before dropping')
     n(longOpt: 'dry-run', 'Only print what would be dropped')
     h(longOpt: 'help', 'Show usage')
@@ -99,9 +100,13 @@ if (options.f) {
     def pattern = ~options.f
     repositories = repositories.findAll { it.description =~ pattern }
 }
+if (options.k) {
+    List<String> keys = options.k.split(',')*.trim().findAll()
+    repositories = repositories.findAll { repo -> keys.any { repo.key.contains(it) } }
+}
 
 if (!repositories) {
-    println "No ${state == 'all' ? '' : state + ' '}repositories found${profile ? " for profile $profile" : ''}${options.f ? " matching '${options.f}'" : ''}."
+    println "No ${state == 'all' ? '' : state + ' '}repositories found${profile ? " for profile $profile" : ''}${options.f ? " matching '${options.f}'" : ''}${options.k ? " with key '${options.k}'" : ''}."
     return
 }
 
